@@ -82,6 +82,58 @@ team_t team = {
 #define NEXT(ptr)  ((char *)(ptr) + GET_SIZE(((char *)(ptr) - WSIZE))) //next block
 #define PREVIOUS(ptr)  ((char *)(ptr) - GET_SIZE(((char *)(ptr) - DSIZE))) //prev block
 
+//Private functions from the book
+static void *coalesce(void *bp)
+{
+    size_t prev_alloc = GET_ALLOC(FOOTER(PREVIOUS(bp)));
+    size_t next_alloc = GET_ALLOC(HEADER(NEXT(bp)));
+    size_t size = GET_SIZE(HEADER(bp));
+    if (prev_alloc && next_alloc) { /* Case 1 */
+        return bp;
+    }
+    else if (prev_alloc && !next_alloc) { /* Case 2 */
+        size += GET_SIZE(HEADER(NEXT(bp)));
+        PUT(HEADER(bp), PACK(size, 0));
+        PUT(FOOTER(bp), PACK(size,0));
+    }
+    else if (!prev_alloc && next_alloc) { /* Case 3 */
+        size += GET_SIZE(HEADER(PREVIOUS(bp)));
+        PUT(FOOTER(bp), PACK(size, 0));
+        PUT(HEADER(PREVIOUS(bp)), PACK(size, 0));
+        bp = PREVIOUS(bp);
+    }
+    else { /* Case 4 */
+        size += GET_SIZE(HEADER(PREVIOUS(bp))) +
+        GET_SIZE(FOOTER(NEXT(bp)));
+        PUT(HEADER(PREVIOUS(bp)), PACK(size, 0));
+        PUT(FOOTER(NEXT(bp)), PACK(size, 0));
+        bp = PREVIOUS(bp);
+    }
+    return bp;
+}
+
+static void *extend_heap(size_t words)
+{
+    char *bp;
+    size_t size;
+    
+    /* Allocate an even number of words to maintain alignment */
+    size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
+    if ((long)(bp = mem_sbrk(size)) == -1)
+    return NULL;
+    
+    /* Initialize free block header/footer and the epilogue header */
+    PUT(HEADER(bp), PACK(size, 0)); /* Free block header */
+    PUT(FOOTER(bp), PACK(size, 0)); /* Free block footer */
+    PUT(HEADER(NEXT(bp)), PACK(0, 1));/* New epilogue header */
+    
+    /* Coalesce if the previous block was free */
+    return coalesce(bp);
+} 
+
+//Private variables
+void *heap_listp;
+
 int mm_init(void)
 {
     /* Create the initial empty heap */
@@ -140,17 +192,3 @@ void *mm_realloc(void *ptr, size_t size)
     mm_free(oldptr);
     return newptr;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
