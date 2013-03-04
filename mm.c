@@ -4,7 +4,7 @@
  * You __MUST__ add your user information here and in the team array bellow.
  * 
  * === User information ===
- * Group: NONE
+ * Group: HardRock
  * User 1: knutur11@ru.is 
  * SSN: 1701834449
  * User 2: haukurr11@ru.is
@@ -36,7 +36,7 @@
  ********************************************************/
 team_t team = {
     /* Team name */
-    "Out of memmory,time and power",
+    "HardRock",
     /* First member's full name */
     "Knutur Oli Magnusson",
     /* First member's email address */
@@ -60,9 +60,28 @@ team_t team = {
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
-/* 
- * mm_init - initialize the malloc package.
- */
+// Macros from the text book on page 830
+//
+#define WSIZE       4       //header/footer size
+#define DSIZE       8       //total overhead size
+#define CHUNKSIZE  (1<<12)  //amnt to extend heap by
+
+#define MAX(x, y) ((x) > (y)? (x) : (y))
+
+#define PACK(size, alloc)  ((size) | (alloc)) //puts size and allocated byte into 4 bytes
+
+#define GET(p)       (*(unsigned int *)(p)) //read word at address p
+#define PUT(p, val)  (*(unsigned int *)(p) = (val)) //write word at address p
+
+#define GET_SIZE(p)  (GET(p) & ~0x7) //extracts size from 4 byte header/footer
+#define GET_ALLOC(p) (GET(p) & 0x1) //extracts allocated byte from 4 byte header/footer
+
+#define HEADER(ptr)       ((char *)(ptr) - WSIZE) //get ptr's header address
+#define FOOTER(ptr)       ((char *)(ptr) + GET_SIZE(HEADER(ptr)) - DSIZE) //get ptr's footer address
+
+#define NEXT(ptr)  ((char *)(ptr) + GET_SIZE(((char *)(ptr) - WSIZE))) //next block
+#define PREVIOUS(ptr)  ((char *)(ptr) - GET_SIZE(((char *)(ptr) - DSIZE))) //prev block
+
 int mm_init(void)
 {
     /* Create the initial empty heap */
