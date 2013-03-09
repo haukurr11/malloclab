@@ -5,9 +5,9 @@
  * 
  * === User information ===
  * Group: HardRock
- * User 1: knutur11@ru.is 
+ * User 1: knutur11 
  * SSN: 1701834449
- * User 2: haukurr11@ru.is
+ * User 2: haukurr11
  * SSN: 1911912269 
  * === End User Information ===
  */
@@ -82,6 +82,11 @@ team_t team = {
 #define NEXT(ptr)  ((char *)(ptr) + GET_SIZE(((char *)(ptr) - WSIZE))) //next block
 #define PREVIOUS(ptr)  ((char *)(ptr) - GET_SIZE(((char *)(ptr) - DSIZE))) //prev block
 
+
+//Private variables
+void *heap_listp;
+
+
 //Private functions from the book
 static void *coalesce(void *bp)
 {
@@ -131,9 +136,35 @@ static void *extend_heap(size_t words)
     return coalesce(bp);
 } 
 
-//Private variables
-void *heap_listp;
+static void *find_fit(size_t asize)
+{
+    /* First fit search */
+    void *bp;
+    for (bp = heap_listp; GET_SIZE(HEADER(bp)) > 0; bp = NEXT(bp)) {
+    if (!GET_ALLOC(HEADER(bp)) && (asize <= GET_SIZE(HEADER(bp)))) {
+        return bp;
+        }
+    }
+    return NULL;/* No fit */
+}
 
+static void place(void *bp, size_t asize)
+{
+    size_t csize = GET_SIZE(HEADER(bp));
+    if ((csize - asize) >= (2*DSIZE)) {
+        PUT(HEADER(bp), PACK(asize, 1));
+        PUT(FOOTER(bp), PACK(asize, 1));
+        bp = NEXT(bp);
+        PUT(HEADER(bp), PACK(csize-asize, 0));
+        PUT(FOOTER(bp), PACK(csize-asize, 0));
+    }
+    else {
+        PUT(HEADER(bp), PACK(csize, 1));
+        PUT(FOOTER(bp), PACK(csize, 1));
+    }
+}
+
+//The functions we implement
 int mm_init(void)
 {
     /* Create the initial empty heap */
@@ -156,14 +187,28 @@ int mm_init(void)
  */
 void *mm_malloc(size_t size)
 {
-    int newsize = ALIGN(size + SIZE_T_SIZE);
-    void *p = mem_sbrk(newsize);
-    if (p == (void *)-1)
-	return NULL;
-    else {
-        *(size_t *)p = size;
-        return (void *)((char *)p + SIZE_T_SIZE);
+    size_t asize; /* Adjusted block size */
+    size_t extendsize;/* Amount to extend heap if no fit */
+    char *bp;
+    /* Ignore spurious requests */
+    if (size == 0)
+    return NULL;
+    /* Adjust block size to include overhead and alignment reqs.*/
+    if (size <= DSIZE)
+    asize = 2*DSIZE;
+    else
+    asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
+    /* Search the free list for a fit */
+    if ((bp = find_fit(asize)) != NULL) {
+        place(bp, asize);
+        return bp;
     }
+    /* No fit found. Get more memory and place the block */
+    extendsize = MAX(asize,CHUNKSIZE);
+    if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
+    return NULL;
+    place(bp, asize);
+    return bp;
 }
 
 /*
