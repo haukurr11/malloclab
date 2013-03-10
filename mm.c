@@ -86,6 +86,12 @@ team_t team = {
 //Private variables
 void *heap_listp;
 
+//Seglist allocators
+void *first_list; //1-2 bytes 
+void *second_list; //3 bytes 
+void *third_list; //4 bytes
+void *fourth_list; //5-8 bytes
+void *fifth_list; //9-inf bytes
 
 //Private functions from the book
 static void *coalesce(void *bp)
@@ -216,6 +222,9 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
+   int csize = GET_SIZE(HEADER(ptr));
+   PUT(HEADER(ptr), PACK(csize, 0)); /* Free block header */
+   PUT(FOOTER(ptr), PACK(csize, 0)); /* Free block footer */
 }
 
 /*
