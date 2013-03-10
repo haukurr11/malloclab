@@ -176,7 +176,7 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1)); /* Epilogue header */
     heap_listp += (2*WSIZE);
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
-    if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
+    if ( (free_listp = extend_heap(CHUNKSIZE/WSIZE)) == NULL)
         return -1;
     return 0;
 }
@@ -216,7 +216,6 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
-k
    int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr), PACK(csize, 0)); /* Free block header */
    PUT(FOOTER(ptr), PACK(csize, 0)); /* Free block footer */
