@@ -176,8 +176,11 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1)); /* Epilogue header */
     heap_listp += (2*WSIZE);
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
-    if ( (free_listp = extend_heap(CHUNKSIZE/WSIZE)) == NULL)
+    if ( (extend_heap(CHUNKSIZE/WSIZE)) == NULL)
         return -1;
+    (*(int *)(heap_listp+(DSIZE/4))) = NULL; 
+    (*(int *)(heap_listp+((DSIZE+WSIZE/4)))) = NULL;
+    
     return 0;
 }
 
