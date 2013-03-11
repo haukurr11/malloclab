@@ -157,8 +157,9 @@ static void *find_fit(size_t asize)
 {
     /* First fit search */
     int *bp;
-    for (bp = free_listp; bp != NULL ; bp = *( (int*) (bp+4)) ) {
-    printf("it:%d\n",GET_SIZE(HEADER(bp)));
+    for (bp = free_listp; bp != NULL ; bp =*((int*)(bp+4))  ) {
+    printf("it:%d %d\n",GET_SIZE(HEADER(bp)), GET_ALLOC(HEADER(bp)));
+    printf("address: %x\n",*(bp+4));
     if (!GET_ALLOC(HEADER(bp)) && (asize <= GET_SIZE(HEADER(bp)))) {
         return ((bp));
         }
@@ -239,6 +240,7 @@ void *mm_malloc(size_t size)
     else
     asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
     /* Search the free list for a fit */
+        printf("%x/n",free_listp);
     if ((bp = find_fit(asize)) != NULL) {
         place( bp, asize);
         validate();
@@ -248,6 +250,9 @@ void *mm_malloc(size_t size)
     extendsize = MAX(asize,CHUNKSIZE);
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
     return NULL;
+    *( (int*) bp) = NULL;
+    *((int*)(bp+4)) = free_listp;
+    free_listp = bp;
     place(bp, asize);
     validate();
     return bp;
@@ -261,9 +266,10 @@ void mm_free(void *ptr)
    int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr),PACK(csize,0));
    PUT(FOOTER(ptr),PACK(csize,0));
-   PUT( (char *)ptr, NULL);
-   PUT( ((char*) (ptr+4)),free_listp);
+   *( (int*) ptr) = NULL;
+   *((int*)(ptr+4)) = free_listp;
    free_listp = ptr;
+   validate();
 }
 
 /*
