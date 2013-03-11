@@ -264,6 +264,7 @@ void mm_free(void *ptr)
    PUT(HEADER(ptr),PACK(csize,0));
    PUT(FOOTER(ptr),PACK(csize,0));
    validate();
+   int a = 0;
    *( (int*) free_listp) = ptr;
    *( (int*) ptr) = NULL;
    *( (int*) (ptr+4)) = free_listp;
