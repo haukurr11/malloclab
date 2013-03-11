@@ -304,7 +304,7 @@ static bool isAligned(void *ptr)
 	return (size_t)ALIGN(ptr) == (size_t)ptr;
 }
 
-void mm_check(bool verb)
+void mm_check()
 {
 	int n = 0;
 	void *listi = free_listp;
