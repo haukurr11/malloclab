@@ -80,6 +80,7 @@ team_t team = {
 #define FOOTER(ptr)       ((char *)(ptr) + GET_SIZE(HEADER(ptr)) - DSIZE) //get ptr's footer address
 
 #define NEXT(ptr)  ((char *)(ptr) + GET_SIZE(((char *)(ptr) - WSIZE))) //next block
+#define NEXT_FREE(ptr)  ((char *) ((ptr) + 4))//next free block
 #define PREVIOUS(ptr)  ((char *)(ptr) - GET_SIZE(((char *)(ptr) - DSIZE))) //prev block
 
 
@@ -117,6 +118,23 @@ static void *coalesce(void *bp)
     return bp;
 }
 
+void validate() {
+    void* ptr = heap_listp;
+    int counter = 0;
+    while( GET_SIZE(HEADER(ptr)) > 0)
+    {
+        if( GET_ALLOC(ptr) == 1 )
+        {
+            printf("Used block: %d bytes\n",GET_SIZE(HEADER(ptr)));
+        }
+        else {
+            printf("Free block: %d bytes\n",GET_SIZE(HEADER(ptr)));
+        }   
+        ptr = NEXT(ptr);
+        counter++;
+    }
+    printf("--validation done\n");
+ }
 static void *extend_heap(size_t words)
 {
     char *bp;
@@ -133,16 +151,17 @@ static void *extend_heap(size_t words)
     PUT(HEADER(NEXT(bp)), PACK(0, 1));/* New epilogue header */
     
     /* Coalesce if the previous block was free */
-    return coalesce(bp);
+    return (bp);
 } 
 
 static void *find_fit(size_t asize)
 {
     /* First fit search */
-    void *bp;
-    for (bp = heap_listp; GET_SIZE(HEADER(bp)) > 0; bp = NEXT(bp)) {
+    int *bp;
+    for (bp = free_listp; bp != NULL ; bp = *( (int*) (bp+4)) ) {
+    printf("it:%d\n",GET_SIZE(HEADER(bp)));
     if (!GET_ALLOC(HEADER(bp)) && (asize <= GET_SIZE(HEADER(bp)))) {
-        return bp;
+        return ((bp));
         }
     }
     return NULL;/* No fit */
@@ -152,6 +171,12 @@ static void place(void *bp, size_t asize)
 {
     size_t csize = GET_SIZE(HEADER(bp));
     if ((csize - asize) >= (2*DSIZE)) {
+        char* prev = *((char*) bp);
+        //if(prev != NULL) 
+            //*prev = *((char*) bp);
+        printf("place address: %x\n",bp);
+        printf("prev: %x\n",*((int*)bp));
+        printf("next: %x\n",*((int*)(bp+4) ));
         PUT(HEADER(bp), PACK(asize, 1));
         PUT(FOOTER(bp), PACK(asize, 1));
         bp = NEXT(bp);
@@ -167,6 +192,7 @@ static void place(void *bp, size_t asize)
 //The functions we implement
 int mm_init(void)
 {
+    printf("STARTING\n");
     /* Create the initial empty heap */
     if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
         return -1;
@@ -176,11 +202,13 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1)); /* Epilogue header */
     heap_listp += (2*WSIZE);
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
-    if ( (extend_heap(CHUNKSIZE/WSIZE)) == NULL)
+    if ( (free_listp = (extend_heap(CHUNKSIZE/WSIZE))) == NULL)
         return -1;
-    (*(int *)(heap_listp+(DSIZE/4))) = NULL; 
-    (*(int *)(heap_listp+((DSIZE+WSIZE/4)))) = NULL;
-    
+    printf("size:%d\n", GET_SIZE(HEADER((char*) (free_listp))));
+    printf("init address: %x\n",free_listp);
+    printf("heap address: %x\n",heap_listp);
+    *((int*)(free_listp)) = 0x16; 
+    *((int*)(free_listp+4)) = 0x1337;
     return 0;
 }
 
@@ -203,7 +231,8 @@ void *mm_malloc(size_t size)
     asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
-        place(bp, asize);
+        place( bp, asize);
+        validate();
         return bp;
     }
     /* No fit found. Get more memory and place the block */
@@ -219,10 +248,12 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
-   int test;
-	int csize = GET_SIZE(HEADER(ptr));
-   PUT(HEADER(ptr), PACK(csize, 0)); /* Free block header */
-   PUT(FOOTER(ptr), PACK(csize, 0)); /* Free block footer */
+   int csize = GET_SIZE(HEADER(ptr));
+   PUT(HEADER(ptr),PACK(csize,0));
+   PUT(FOOTER(ptr),PACK(csize,0));
+   PUT( (char *)ptr, NULL);
+   PUT( ((char*) (ptr+4)),free_listp);
+   free_listp = ptr;
 }
 
 /*
@@ -230,17 +261,17 @@ void mm_free(void *ptr)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    void *oldptr = ptr;
-    void *newptr;
-    size_t copySize;
-    
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
-      return NULL;
-    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr;
+//    void *oldptr = ptr;
+//    void *newptr;
+//    size_t copySize;
+//    
+//    newptr = mm_malloc(size);
+//    if (newptr == NULL)
+//      return NULL;
+//    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
+//    if (size < copySize)
+//      copySize = size;
+//    memcpy(newptr, oldptr, copySize);
+//    mm_free(oldptr);
+//    return newptr;
 }
