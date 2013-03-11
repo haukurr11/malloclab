@@ -291,3 +291,44 @@ void *mm_realloc(void *ptr, size_t size)
 //    mm_free(oldptr);
 //    return newptr;
 }
+static bool isInHeep(void *ptr)
+{
+	if(ptr >= mem_heep_lo() && ptr <= mem_heep_hi())
+		return true;
+	else
+		return false;
+}
+
+static bool isAligned(void *ptr)
+{
+	return (size_t)ALIGN(ptr) == (size_t)ptr;
+}
+
+void mm_check(bool verb)
+{
+	int n = 0;
+	void *listi = free_listp;
+	printf("Checking list \n");
+		while(listi != NULL)
+		{
+			printf("Block #%d\n",n);
+			
+			if(isInHeep(listi))
+				printf("Found the pointer in heep\n");
+			else
+				printf("Error! the pointer was not in heep\n");
+			
+			if(isAligned(listi))
+				printf("Aligned Block\n");
+			else
+				printf("Block is not aligned!\n");
+
+			printf("Pointer address is: %p \n", listi);
+			printf("Pointer next address is: %p \n", GET_NEXT(listi));
+			printf("Pointer prev address is: %p \n", GET_PREV(listi));
+			n++;
+			listi = GET_NEXT(listi);
+		}
+	printf("\nNo segmentation fault in: %d blocks\n", n);
+}
+
