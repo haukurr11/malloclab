@@ -219,6 +219,7 @@ int mm_init(void)
     printf("heap address: %x\n",heap_listp);
     *((int*)(free_listp)) = NULL; 
     *((int*)(free_listp+4)) = NULL;
+    mm_check();
     return 0;
 }
 
@@ -291,17 +292,17 @@ void *mm_realloc(void *ptr, size_t size)
 //    mm_free(oldptr);
 //    return newptr;
 }
-static bool isInHeep(void *ptr)
+static int isInHeep(void *ptr)
 {
 	if(ptr >= mem_heep_lo() && ptr <= mem_heep_hi())
-		return true;
+		return 1;
 	else
-		return false;
+		return 0;
 }
 
-static bool isAligned(void *ptr)
+static int isAligned(void *ptr)
 {
-	return (size_t)ALIGN(ptr) == (size_t)ptr;
+	return (ALIGN( (size_t)(ptr)) == ( (size_t)ptr)) ;
 }
 
 void mm_check()
