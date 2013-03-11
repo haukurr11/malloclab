@@ -156,10 +156,10 @@ static void *extend_heap(size_t words)
 static void *find_fit(size_t asize)
 {
     /* First fit search */
-    int *bp;
+    void *bp;
     for (bp = free_listp; bp != NULL ; bp =*((int*)(bp+4))  ) {
     printf("it:%d %d\n",GET_SIZE(HEADER(bp)), GET_ALLOC(HEADER(bp)));
-    printf("address: %x\n",*(bp+4));
+    printf("address: %x\n",*( (int*) (bp+4)));
     if (!GET_ALLOC(HEADER(bp)) && (asize <= GET_SIZE(HEADER(bp)))) {
         return ((bp));
         }
@@ -215,11 +215,10 @@ int mm_init(void)
     if ( (free_listp = (extend_heap(CHUNKSIZE/WSIZE))) == NULL)
         return -1;
     printf("size:%d\n", GET_SIZE(HEADER((char*) (free_listp))));
-    printf("init address: %x\n",free_listp);
-    printf("heap address: %x\n",heap_listp);
+    printf("init address: %p\n",free_listp);
+    printf("heap address: %p\n",heap_listp);
     *((int*)(free_listp)) = NULL; 
     *((int*)(free_listp+4)) = NULL;
-    mm_check();
     return 0;
 }
 
@@ -241,19 +240,16 @@ void *mm_malloc(size_t size)
     else
     asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
     /* Search the free list for a fit */
-        printf("%x/n",free_listp);
     if ((bp = find_fit(asize)) != NULL) {
         place( bp, asize);
         validate();
         return bp;
     }
+
     /* No fit found. Get more memory and place the block */
     extendsize = MAX(asize,CHUNKSIZE);
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
     return NULL;
-    *( (int*) bp) = NULL;
-    *((int*)(bp+4)) = free_listp;
-    free_listp = bp;
     place(bp, asize);
     validate();
     return bp;
@@ -267,10 +263,22 @@ void mm_free(void *ptr)
    int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr),PACK(csize,0));
    PUT(FOOTER(ptr),PACK(csize,0));
-   *( (int*) ptr) = NULL;
-   *((int*)(ptr+4)) = free_listp;
-   free_listp = ptr;
    validate();
+   *( (int*) free_listp) = ptr;
+   *( (int*) ptr) = NULL;
+   *( (int*) (ptr+4)) = free_listp;
+   free_listp = ptr;
+
+   void *stuff = free_listp;
+   while( stuff != NULL) {
+   printf("node info:\n");
+   printf("node address:%p\n",stuff );
+   printf("node prev:%p\n",*( (int*) stuff ));
+   printf("node next:%p\n",*( (int*) (stuff +4)));
+   printf("node size:%d\n",GET_SIZE(HEADER(stuff)));
+   stuff = *( (int*) (stuff+4));
+   }
+
 }
 
 /*
@@ -291,45 +299,5 @@ void *mm_realloc(void *ptr, size_t size)
 //    memcpy(newptr, oldptr, copySize);
 //    mm_free(oldptr);
 //    return newptr;
-}
-static int isInHeep(void *ptr)
-{
-	if(ptr >= mem_heep_lo() && ptr <= mem_heep_hi())
-		return 1;
-	else
-		return 0;
-}
-
-static int isAligned(void *ptr)
-{
-	return (ALIGN( (size_t)(ptr)) == ( (size_t)ptr)) ;
-}
-
-void mm_check()
-{
-	int n = 0;
-	void *listi = free_listp;
-	printf("Checking list \n");
-		while(listi != NULL)
-		{
-			printf("Block #%d\n",n);
-			
-			if(isInHeep(listi))
-				printf("Found the pointer in heep\n");
-			else
-				printf("Error! the pointer was not in heep\n");
-			
-			if(isAligned(listi))
-				printf("Aligned Block\n");
-			else
-				printf("Block is not aligned!\n");
-
-			printf("Pointer address is: %p \n", listi);
-			printf("Pointer next address is: %p \n", GET_NEXT(listi));
-			printf("Pointer prev address is: %p \n", GET_PREV(listi));
-			n++;
-			listi = GET_NEXT(listi);
-		}
-	printf("\nNo segmentation fault in: %d blocks\n", n);
 }
 
