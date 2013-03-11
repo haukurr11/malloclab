@@ -219,7 +219,8 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
-   int csize = GET_SIZE(HEADER(ptr));
+   int test;
+	int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr), PACK(csize, 0)); /* Free block header */
    PUT(FOOTER(ptr), PACK(csize, 0)); /* Free block footer */
 }
