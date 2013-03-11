@@ -123,7 +123,7 @@ void validate() {
     int counter = 0;
     while( GET_SIZE(HEADER(ptr)) > 0)
     {
-        if( GET_ALLOC(ptr) == 1 )
+        if( GET_ALLOC(HEADER(ptr)) == 1 )
         {
             printf("Used block: %d bytes\n",GET_SIZE(HEADER(ptr)));
         }
@@ -149,7 +149,6 @@ static void *extend_heap(size_t words)
     PUT(HEADER(bp), PACK(size, 0)); /* Free block header */
     PUT(FOOTER(bp), PACK(size, 0)); /* Free block footer */
     PUT(HEADER(NEXT(bp)), PACK(0, 1));/* New epilogue header */
-    
     /* Coalesce if the previous block was free */
     return (bp);
 } 
@@ -172,14 +171,24 @@ static void place(void *bp, size_t asize)
     size_t csize = GET_SIZE(HEADER(bp));
     if ((csize - asize) >= (2*DSIZE)) {
         char* prev = *((char*) bp);
-        //if(prev != NULL) 
-            //*prev = *((char*) bp);
+        int* next_current =*((int*)(bp+4));
+            
         printf("place address: %x\n",bp);
+        printf("next current: %x\n",next_current);
         printf("prev: %x\n",*((int*)bp));
         printf("next: %x\n",*((int*)(bp+4) ));
         PUT(HEADER(bp), PACK(asize, 1));
         PUT(FOOTER(bp), PACK(asize, 1));
         bp = NEXT(bp);
+        if(prev == NULL)
+        {
+            free_listp = bp;
+            *( (int*) free_listp) = NULL;
+            *((int*)(free_listp+4)) = next_current;
+        }
+        else {
+            *((int*)(prev+4)) = next_current;
+        }
         PUT(HEADER(bp), PACK(csize-asize, 0));
         PUT(FOOTER(bp), PACK(csize-asize, 0));
     }
@@ -207,8 +216,8 @@ int mm_init(void)
     printf("size:%d\n", GET_SIZE(HEADER((char*) (free_listp))));
     printf("init address: %x\n",free_listp);
     printf("heap address: %x\n",heap_listp);
-    *((int*)(free_listp)) = 0x16; 
-    *((int*)(free_listp+4)) = 0x1337;
+    *((int*)(free_listp)) = NULL; 
+    *((int*)(free_listp+4)) = NULL;
     return 0;
 }
 
@@ -240,6 +249,7 @@ void *mm_malloc(size_t size)
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
     return NULL;
     place(bp, asize);
+    validate();
     return bp;
 }
 
