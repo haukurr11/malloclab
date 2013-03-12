@@ -71,7 +71,11 @@ team_t team = {
 #define PACK(size, alloc)  ((size) | (alloc)) //puts size and allocated byte into 4 bytes
 
 #define GET(p)       (*(unsigned int *)(p)) //read word at address p
+#define GET_NEXT_FREE(p)       (*(unsigned int *)(p+WSIZE)) //read word at address p
+#define GET_PREV_FREE(p)      GET(p) 
 #define PUT(p, val)  (*(unsigned int *)(p) = (val)) //write word at address p
+#define PUT_NEXT_FREE(p, val)  (*(unsigned int *)(p+WSIZE) = (val)) //write word at address p
+#define PUT_PREV_FREE(p, val) PUT(p,val) 
 
 #define GET_SIZE(p)  (GET(p) & ~0x7) //extracts size from 4 byte header/footer
 #define GET_ALLOC(p) (GET(p) & 0x1) //extracts allocated byte from 4 byte header/footer
@@ -80,7 +84,6 @@ team_t team = {
 #define FOOTER(ptr)       ((char *)(ptr) + GET_SIZE(HEADER(ptr)) - DSIZE) //get ptr's footer address
 
 #define NEXT(ptr)  ((char *)(ptr) + GET_SIZE(((char *)(ptr) - WSIZE))) //next block
-#define NEXT_FREE(ptr)  ((char *) ((ptr) + 4))//next free block
 #define PREVIOUS(ptr)  ((char *)(ptr) - GET_SIZE(((char *)(ptr) - DSIZE))) //prev block
 
 
@@ -116,6 +119,25 @@ static void *coalesce(void *bp)
         bp = PREVIOUS(bp);
     }
     return bp;
+}
+
+void stack_remove(void *element) {
+    
+
+
+}
+
+void freestack_push( void *element) {
+     if( free_listp != NULL) {
+     PUT_NEXT_FREE(element,free_listp);
+     PUT_PREV_FREE(element,NULL);
+     PUT_PREV_FREE(free_listp,element);
+     }
+     else {
+     PUT_NEXT_FREE(element,NULL);
+     PUT_PREV_FREE(element,NULL);
+     } 
+     free_listp = element;
 }
 
 void validate() {
@@ -157,9 +179,7 @@ static void *find_fit(size_t asize)
 {
     /* First fit search */
     void *bp;
-    for (bp = free_listp; bp != NULL ; bp =*((int*)(bp+4))  ) {
-    printf("it:%d %d\n",GET_SIZE(HEADER(bp)), GET_ALLOC(HEADER(bp)));
-    printf("address: %x\n",*( (int*) (bp+4)));
+    for (bp = free_listp; bp != NULL ; bp = GET_NEXT_FREE(bp)  ) {
     if (!GET_ALLOC(HEADER(bp)) && (asize <= GET_SIZE(HEADER(bp)))) {
         return ((bp));
         }
@@ -169,26 +189,26 @@ static void *find_fit(size_t asize)
 
 static void place(void *bp, size_t asize)
 {
+    //printf("size: %d\n",asize);
     size_t csize = GET_SIZE(HEADER(bp));
     if ((csize - asize) >= (2*DSIZE)) {
-        char* prev = *((char*) bp);
-        int* next_current =*((int*)(bp+4));
-            
-        printf("place address: %x\n",bp);
-        printf("next current: %x\n",next_current);
-        printf("prev: %x\n",*((int*)bp));
-        printf("next: %x\n",*((int*)(bp+4) ));
+        void* prev = GET_PREV_FREE(bp); 
+        void* next_current = GET_NEXT_FREE(bp); 
+        //printf("place address: %p\n",bp);
+        //printf("next current: %p\n",next_current);
+        //printf("prev: %p\n",GET_PREV_FREE(bp));
+        //printf("next: %p\n",GET_NEXT_FREE(bp));
         PUT(HEADER(bp), PACK(asize, 1));
         PUT(FOOTER(bp), PACK(asize, 1));
         bp = NEXT(bp);
         if(prev == NULL)
         {
             free_listp = bp;
-            *( (int*) free_listp) = NULL;
-            *((int*)(free_listp+4)) = next_current;
+            PUT(free_listp,NULL);
+            PUT_NEXT_FREE(free_listp,next_current);
         }
         else {
-            *((int*)(prev+4)) = next_current;
+            PUT_NEXT_FREE(prev,next_current);
         }
         PUT(HEADER(bp), PACK(csize-asize, 0));
         PUT(FOOTER(bp), PACK(csize-asize, 0));
@@ -196,13 +216,14 @@ static void place(void *bp, size_t asize)
     else {
         PUT(HEADER(bp), PACK(csize, 1));
         PUT(FOOTER(bp), PACK(csize, 1));
+        free_listp = NULL;
     }
 }
 
 //The functions we implement
 int mm_init(void)
 {
-    printf("STARTING\n");
+    //printf("STARTING\n");
     /* Create the initial empty heap */
     if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
         return -1;
@@ -214,11 +235,11 @@ int mm_init(void)
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
     if ( (free_listp = (extend_heap(CHUNKSIZE/WSIZE))) == NULL)
         return -1;
-    printf("size:%d\n", GET_SIZE(HEADER((char*) (free_listp))));
-    printf("init address: %p\n",free_listp);
-    printf("heap address: %p\n",heap_listp);
-    *((int*)(free_listp)) = NULL; 
-    *((int*)(free_listp+4)) = NULL;
+    //printf("size:%d\n", GET_SIZE(HEADER((char*) (free_listp))));
+    //printf("init address: %p\n",free_listp);
+    //printf("heap address: %p\n",heap_listp);
+    PUT_PREV_FREE(free_listp,NULL);
+    PUT_NEXT_FREE(free_listp,NULL);
     return 0;
 }
 
@@ -242,7 +263,7 @@ void *mm_malloc(size_t size)
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
         place( bp, asize);
-        validate();
+        //validate();
         return bp;
     }
 
@@ -250,8 +271,10 @@ void *mm_malloc(size_t size)
     extendsize = MAX(asize,CHUNKSIZE);
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
     return NULL;
+    mm_free(bp);
+    //printf("new memory!\n");
     place(bp, asize);
-    validate();
+    //validate();
     return bp;
 }
 
@@ -263,23 +286,16 @@ void mm_free(void *ptr)
    int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr),PACK(csize,0));
    PUT(FOOTER(ptr),PACK(csize,0));
-   validate();
-   int a = 0;
-   *( (int*) free_listp) = ptr;
-   *( (int*) ptr) = NULL;
-   *( (int*) (ptr+4)) = free_listp;
-   free_listp = ptr;
-
-   void *stuff = free_listp;
-   while( stuff != NULL) {
-   printf("node info:\n");
-   printf("node address:%p\n",stuff );
-   printf("node prev:%p\n",*( (int*) stuff ));
-   printf("node next:%p\n",*( (int*) (stuff +4)));
-   printf("node size:%d\n",GET_SIZE(HEADER(stuff)));
-   stuff = *( (int*) (stuff+4));
+   if( free_listp != NULL) {
+   PUT_NEXT_FREE(ptr,free_listp);
+   PUT_PREV_FREE(ptr,NULL);
+   PUT_PREV_FREE(free_listp,ptr);
    }
-
+   else {
+   //PUT_NEXT_FREE(ptr,NULL);
+   //PUT_PREV_FREE(ptr,NULL);
+   } 
+   free_listp = ptr;
 }
 
 /*
