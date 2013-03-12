@@ -128,17 +128,19 @@ void freestack_remove(void *element) {
 }
 
 void freestack_push( void *element) {
-     //printf("push\n");
+     printf("-------push %p\n",element);
      if( free_listp != NULL) {
      PUT_NEXT_FREE(element,free_listp);
-     PUT_PREV_FREE(element,NULL);
-     PUT_PREV_FREE(free_listp,element);
+     PUT(element,NULL);
+     char el = element;
+     PUT(free_listp,element);
      }
      else {
      PUT_NEXT_FREE(element,NULL);
-     PUT_PREV_FREE(element,NULL);
+     PUT(element,NULL);
      } 
      free_listp = element;
+     printf("-------pushed %p\n",free_listp);
 }
 
 void validate() {
@@ -160,7 +162,7 @@ void validate() {
  }
 static void *extend_heap(size_t words)
 {
-    //printf("extend\n");
+//printf("extend\n");
     char *bp;
     size_t size;
     
@@ -210,13 +212,14 @@ static void place(void *bp, size_t asize)
         bp = NEXT(bp);
         PUT(HEADER(bp), PACK(csize-asize, 0));
         PUT(FOOTER(bp), PACK(csize-asize, 0));
-        if( 1 ||prev == NULL)
+        if( prev == NULL)
         {
-        //printf("previsnull\n");
-            free_listp = next;
-            if(free_listp != NULL)
-                PUT(free_listp,NULL);
-            //PUT_NEXT_FREE(free_listp,next);
+            if(next != NULL)
+                PUT_NEXT_FREE(bp,next);
+            else PUT_NEXT_FREE(bp,NULL);
+            PUT(bp,NULL);
+            PUT(free_listp,bp);
+            free_listp = bp;
         }
         else {
             //printf("-------------------------------------------------\n");
@@ -224,14 +227,11 @@ static void place(void *bp, size_t asize)
             //printf("%p\n",bp);
             //printf("%p\n",prev);
             PUT_NEXT_FREE(prev,bp);
-            //printf("----------------------first_sentence\n");
+            printf("----------------------first_sentence\n");
             PUT_NEXT_FREE(bp,next);
             //printf("second sentence \n");
             if(next != NULL)
-            {
-            //printf("prev-------------------------------------------------\n");
-                //PUT_PREV_FREE(next,bp);
-            }
+                PUT(next,bp);
         }
     }
     else {
@@ -260,7 +260,7 @@ int mm_init(void)
     ////printf("size:%d\n", GET_SIZE(HEADER((char*) (free_listp))));
     ////printf("init address: %p\n",free_listp);
     ////printf("heap address: %p\n",heap_listp);
-    PUT_PREV_FREE(free_listp,NULL);
+    PUT(free_listp,NULL);
     PUT_NEXT_FREE(free_listp,NULL);
     return 0;
 }
@@ -271,6 +271,7 @@ int mm_init(void)
  */
 void *mm_malloc(size_t size)
 {
+    mm_check(); 
     //printf("malloc\n");
     size_t asize; /* Adjusted block size */
     size_t extendsize;/* Amount to extend heap if no fit */
@@ -344,3 +345,54 @@ void *mm_realloc(void *ptr, size_t size)
 //    return newptr;
 }
 
+
+static int isInHeep(void *ptr)
+{
+ if(ptr >= mem_heap_lo() && ptr <= mem_heap_hi())
+    return 1;
+ else
+    return 0;
+}
+
+//static int isAligned(void *ptr)
+//{
+// return ( (size_t)ALIGN(ptr)) == (size_t)ptr;
+//}
+
+void mm_check()
+{
+ int n = 0;
+ void *listi = free_listp;
+ printf("Checking list \n");
+    while(listi != NULL)
+    {
+    printf("Block #%d\n",n);
+
+    if(isInHeep(listi))
+    printf("Found the pointer in heep\n");
+    else
+    printf("Error! the pointer was not in heep\n");
+
+ //   if(isAligned(listi))
+  //    printf("Aligned Block\n");
+   // else
+  // printf("Block is not aligned!\n");
+
+    printf("InUse? %d\n", GET_ALLOC(HEADER(listi)));
+    printf("Pointer address is: %p \n", listi);
+    printf("Pointer next address is: %p \n", GET_NEXT_FREE(listi));
+    printf("Pointer prev address is: %p \n", GET_PREV_FREE(listi));
+    if(GET_NEXT_FREE(listi) == NULL || isInHeep(GET_NEXT_FREE(listi)))
+        printf("next is in Heap!\n");
+    else
+        printf("next missing from heap!\n");
+    if(GET_PREV_FREE(listi) == NULL || isInHeep(GET_PREV_FREE(listi)))
+        printf("prev is in Heap!\n");
+    else
+        printf("prev missing from heap!\n");
+ 
+    n++;
+    listi = GET_NEXT_FREE(listi);
+    }
+ printf("\nNo segmentation fault in: %d blocks\n", n);
+}
