@@ -210,7 +210,7 @@ static void place(void *bp, size_t asize)
         bp = NEXT(bp);
         PUT(HEADER(bp), PACK(csize-asize, 0));
         PUT(FOOTER(bp), PACK(csize-asize, 0));
-        if(prev == NULL)
+        if( 1 ||prev == NULL)
         {
         //printf("previsnull\n");
             free_listp = next;
