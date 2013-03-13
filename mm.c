@@ -247,7 +247,6 @@ static void inline place(void *bp, size_t asize)
         }
 }
 
-//The functions we implement
 int mm_init(void)
 {
     void *heap_listp;
@@ -301,7 +300,7 @@ void *mm_malloc(size_t size)
 }
 
 /*
- * mm_free - Freeing a block does nothing.
+ * mm_free - Frees a memory space and adds it to the freelist with coalescing 
  */
 void mm_free(void *ptr)
 {
