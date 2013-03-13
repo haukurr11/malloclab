@@ -91,35 +91,6 @@ team_t team = {
 void *heap_listp;
 void *free_listp;
 
-//Private functions from the book
-static void inline *coalesce(void *bp)
-{
-    size_t prev_alloc = GET_ALLOC(FOOTER(PREVIOUS(bp)));
-    size_t next_alloc = GET_ALLOC(HEADER(NEXT(bp)));
-    size_t size = GET_SIZE(HEADER(bp));
-    if (prev_alloc && next_alloc) { /* Case 1 */
-        return bp;
-    }
-    else if (prev_alloc && !next_alloc) { /* Case 2 */
-        size += GET_SIZE(HEADER(NEXT(bp)));
-        PUT(HEADER(bp), PACK(size, 0));
-        PUT(FOOTER(bp), PACK(size,0));
-    }
-    else if (!prev_alloc && next_alloc) { /* Case 3 */
-        size += GET_SIZE(HEADER(PREVIOUS(bp)));
-        PUT(FOOTER(bp), PACK(size, 0));
-        PUT(HEADER(PREVIOUS(bp)), PACK(size, 0));
-        bp = PREVIOUS(bp);
-    }
-    else { /* Case 4 */
-        size += GET_SIZE(HEADER(PREVIOUS(bp))) +
-        GET_SIZE(FOOTER(NEXT(bp)));
-        PUT(HEADER(PREVIOUS(bp)), PACK(size, 0));
-        PUT(FOOTER(NEXT(bp)), PACK(size, 0));
-        bp = PREVIOUS(bp);
-    }
-    return bp;
-}
 
 static void inline freestack_push( void *element) {
      if( free_listp != NULL) {
@@ -142,11 +113,45 @@ static void inline freestack_remove( void* element) {
          if(free_listp != NULL)
             PUT_PREV_FREE(free_listp,NULL);
      }
-     else {
+     else { 
         PUT_NEXT_FREE(prev,next);
         if(next != NULL)
           PUT_PREV_FREE(next,prev); 
      }
+}
+
+
+//Private functions from the book
+static void inline *coalesce(void *bp)
+{
+    size_t prev_alloc = GET_ALLOC(FOOTER(PREVIOUS(bp)));
+    size_t next_alloc = GET_ALLOC(HEADER(NEXT(bp)));
+    size_t size = GET_SIZE(HEADER(bp));
+    if (prev_alloc && next_alloc) { /* Case 1 */
+        freestack_push(bp);
+    }
+    else if (prev_alloc && !next_alloc) { /* Case 2 */
+        size += GET_SIZE(HEADER(NEXT(bp)));
+        freestack_remove(NEXT(bp));
+        PUT(HEADER(bp), PACK(size, 0));
+        PUT(FOOTER(bp), PACK(size,0));
+        freestack_push(bp);
+    }
+    else if (!prev_alloc && next_alloc) { /* Case 3 */
+        size += GET_SIZE(HEADER(PREVIOUS(bp)));
+        PUT(FOOTER(bp), PACK(size, 0));
+        PUT(HEADER(PREVIOUS(bp)), PACK(size, 0));
+        bp = PREVIOUS(bp);
+    }
+    else { /* Case 4 */
+        size += GET_SIZE(HEADER(PREVIOUS(bp))) +
+        GET_SIZE(FOOTER(NEXT(bp)));
+        PUT(HEADER(PREVIOUS(bp)), PACK(size, 0));
+        PUT(FOOTER(NEXT(bp)), PACK(size, 0));
+        freestack_remove( NEXT(bp));
+        bp = PREVIOUS(bp);
+    }
+    return bp;
 }
 
 static void inline *extend_heap(size_t words)
@@ -226,13 +231,13 @@ static inline void place(void *bp, size_t asize)
 int mm_init(void)
 {
    //// /* Create the initial empty heap */
-  //  if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
-   //     return -1;
-  //  PUT(heap_listp, 0); /* Alignment padding */
-  //  PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1));/* Prologue header */
-  //  PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));/* Prologue footer */
-  //  PUT(heap_listp + (3*WSIZE), PACK(0, 1)); /* Epilogue header */
-  //  heap_listp += (2*WSIZE);
+    if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
+        return -1;
+    PUT(heap_listp, 0); /* Alignment padding */
+    PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1));/* Prologue header */
+    PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));/* Prologue footer */
+    PUT(heap_listp + (3*WSIZE), PACK(0, 1)); /* Epilogue header */
+    heap_listp += (2*WSIZE);
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
     if ( (free_listp = (extend_heap(CHUNKSIZE/WSIZE))) == NULL)
             return -1;
@@ -279,11 +284,15 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
+   //mm_check();
    if(ptr == NULL)
     return;
    int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr),PACK(csize,0));
    PUT(FOOTER(ptr),PACK(csize,0));
+   if( free_listp != NULL)
+    coalesce(ptr);
+   else 
    freestack_push(ptr);
 }
 
@@ -308,14 +317,9 @@ void *mm_realloc(void *ptr, size_t size)
 }
 
 
-static int isInHeep(void *ptr)
-{
- if(ptr >= mem_heap_lo() && ptr <= mem_heap_hi())
-    return 1;
- else
-    return 0;
+static int isInHeep( void *ptr) {
+return (ptr>= mem_heap_lo() && ptr<= mem_heap_hi());
 }
-
 //static int isAligned(void *ptr)
 //{
 // return ( (size_t)ALIGN(ptr)) == (size_t)ptr;
@@ -330,7 +334,7 @@ void mm_check()
     {
     printf("Block #%d\n",n);
 
-    if(isInHeep(listi))
+    if(listi >= mem_heap_lo() && listi <= mem_heap_hi())
     printf("Found the pointer in heep\n");
     else
     printf("Error! the pointer was not in heep\n");
