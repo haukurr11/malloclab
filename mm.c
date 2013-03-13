@@ -126,6 +126,8 @@ static void inline freestack_remove( void* element) {
 /*Coalesces and adds to the freestack */
 static void inline *coalesce(void *bp)
 {
+    if(bp == NULL)
+        return NULL;
     size_t prev_alloc = GET_ALLOC(FOOTER(PREVIOUS(bp)));
     size_t next_alloc = GET_ALLOC(HEADER(NEXT(bp)));
     size_t size = GET_SIZE(HEADER(bp));
@@ -261,22 +263,21 @@ void *mm_malloc(size_t size)
     char *bp;
     /* Ignore spurious requests */
     if (size == 0)
-    return NULL;
+        return NULL;
     /* Adjust block size to include overhead and alignment reqs.*/
     if (size <= 4*DSIZE)
-    asize = 4*DSIZE;
+        asize = 4*DSIZE;
     else
-    asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
+        asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
         place( bp, asize);
-        //validate();
         return bp;
     }
     /* No fit found. Get more memory and place the block */
     extendsize = MAX(asize,CHUNKSIZE);
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
-    return NULL;
+        return NULL;
     freestack_push(bp);
     place(bp, asize);
     return bp;
@@ -288,7 +289,7 @@ void *mm_malloc(size_t size)
 void mm_free(void *ptr)
 {
    if(ptr == NULL)
-     return;
+      return;
    int csize = GET_SIZE(HEADER(ptr));
    PUT(HEADER(ptr),PACK(csize,0));
    PUT(FOOTER(ptr),PACK(csize,0));
@@ -300,19 +301,19 @@ void mm_free(void *ptr)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-//    void *oldptr = ptr;
-//    void *newptr;
-//    size_t copySize;
-//    
-//    newptr = mm_malloc(size);
-//    if (newptr == NULL)
-//      return NULL;
-//    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-//    if (size < copySize)
-//      copySize = size;
-//    memcpy(newptr, oldptr, copySize);
-//    mm_free(oldptr);
-//    return newptr;
+    void *oldptr = ptr;
+    void *newptr;
+    size_t copySize;
+    
+    newptr = mm_malloc(size);
+    if (newptr == NULL)
+      return NULL;
+    copySize = GET_SIZE(HEADER(ptr)); 
+    if (size < copySize)
+      copySize = size;
+    memcpy(newptr, oldptr, copySize);
+    mm_free(oldptr);
+    return newptr;
 }
 
 
