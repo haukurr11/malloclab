@@ -88,9 +88,7 @@ team_t team = {
 
 
 //Private variables
-void *heap_listp;
 void *free_listp;
-
 
 /* Adds a pointer to the freestack */
 static void inline freestack_push( void *element) {
@@ -236,6 +234,7 @@ static void inline place(void *bp, size_t asize)
 //The functions we implement
 int mm_init(void)
 {
+   void *heap_listp;
    /* Create the initial empty heap */
     if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
         return -1;
@@ -258,6 +257,7 @@ int mm_init(void)
  */
 void *mm_malloc(size_t size)
 {
+    //mm_check();
     size_t asize; /* Adjusted block size */
     size_t extendsize;/* Amount to extend heap if no fit */
     char *bp;
@@ -319,36 +319,109 @@ void *mm_realloc(void *ptr, size_t size)
 }
 
 
-static int isInHeep( void *ptr) {
-return (ptr>= mem_heap_lo() && ptr<= mem_heap_hi());
+static inline int isInHeap( void *ptr) {
+    void* heaplo = mem_heap_lo();
+    void* heaphi = mem_heap_hi();
+    return (ptr>=heaplo  && ptr<= heaphi);
 }
 
 void mm_check()
 {
- int count = 0;
- void *it= free_listp;
- printf("Checking list \n");
-    for(it = free_listp;it != NULL;it = GET_NEXT_FREE(it) )
-    {
-    printf("Block #%d\n",count);
-    if(it >= mem_heap_lo() && it <= mem_heap_hi())
-    printf("Found the pointer in heep\n");
-    else
-    printf("Error! the pointer was not in heep\n");
-    printf("InUse? %d\n", GET_ALLOC(HEADER(it)));
-    printf("Pointer address is: %p \n", it);
-    printf("SIZE: %d \n", GET_SIZE(HEADER(it)));
-    printf("Pointer next address is: %p \n", GET_NEXT_FREE(it));
-    printf("Pointer prev address is: %p \n", GET_PREV_FREE(it));
-    if(GET_NEXT_FREE(it) == NULL || isInHeep(GET_NEXT_FREE(it)))
-        printf("next is in Heap!\n");
-    else
-        printf("next missing from heap!\n");
-    if(GET_PREV_FREE(it) == NULL || isInHeep(GET_PREV_FREE(it)))
-        printf("prev is in Heap!\n");
-    else
-        printf("prev missing from heap!\n");
-    count++;
+    int count = 0;
+    void *it;
+    printf("Checking FreeList for errors\n");
+    for(it = free_listp; it != NULL; it = GET_NEXT_FREE(it) ) {
+        printf("-------Checking block %d:\n",count);
+        printf("Pointer address is: %p \n", it);
+        printf("Size of block: %d \n", GET_SIZE(HEADER(it)));
+        printf("Pointer next address is: %p \n", GET_NEXT_FREE(it));
+        printf("Pointer prev address is: %p \n", GET_PREV_FREE(it));
+
+        /* Is every block in the free list marked as free? */
+        if(!GET_ALLOC(HEADER(it)))
+            printf("Block is marked as free!\n");
+        else
+        {
+            printf("ERROR: ALLOCATED BLOCK IN FREELIST!\n");
+            exit(1);
+        }
+        /*Are there any contiguous free blocks that somehow escaped coalescing? */
+        size_t prev_alloc = GET_ALLOC(FOOTER(PREVIOUS(it)));
+        size_t next_alloc = GET_ALLOC(HEADER(NEXT(it)));
+        if(!prev_alloc || !next_alloc)  
+        {
+            printf("ERROR: FREEBLOCK HAS ESCAPED COALESCING!\n");
+            exit(1);
+        }
+        else
+            printf("Coalescing is correct\n");
+
+
+        /*Do the pointers in the free list point to valid free blocks?*/
+        if( GET_NEXT_FREE(it) != NULL &&  GET_ALLOC( HEADER(GET_NEXT_FREE(it))))
+         {
+            printf("ERROR! NEXT POINTER NOT POINTING TO A FREE BLOCK");
+            exit(1);
+         }
+        if( GET_PREV_FREE(it) != NULL &&  GET_ALLOC( HEADER(GET_PREV_FREE(it))))
+         {
+            printf("ERROR! PREV POINTER NOT POINTING TO A FREE BLOCK");
+            exit(1);
+         }
+
+        /*Do the pointers in a heap block point to valid heap addresses? */
+        if(it >= mem_heap_lo() && it <= mem_heap_hi())
+            printf("Found the pointer in heap\n");
+        else
+        {
+            printf("ERROR! POINTER NOT WITHIN HEAP\n");
+            exit(1);
+        }
+
+        if(GET_NEXT_FREE(it) == NULL || isInHeap(GET_NEXT_FREE(it)))
+            printf("next is in Heap!\n");
+        else
+        {
+            printf("ERROR! NEXT MISSING FROM HEAP!\n");
+            exit(1);
+        }
+        if(GET_PREV_FREE(it) == NULL || isInHeap(GET_PREV_FREE(it)))
+            printf("prev is in Heap!\n");
+        else
+        {
+            printf("ERROR! PREV MISSING FROM HEAP!!\n");
+            exit(1);
+        }
+        count++;
     }
- printf("\nNo segmentation fault in: %d blocks\n", count);
+    printf("No Errors( %d blocks )\n\n", count);
+
+    /* If we reach this point, the freelist looks okay,
+     * lets check if the heaplist is valid
+    */
+    void* heapit;
+    int found = 0;
+    void* listp = 0xf6bf0010; //same as heap_listp in mm_init
+    for(heapit = listp;heapit<mem_heap_hi();heapit = NEXT(heapit)) {
+        /* Do any allocated blocks overlap? */
+        if( !(NEXT(heapit) > FOOTER(heapit)) ) {
+            printf("ERROR! Block %p overlaps block %p\n",heapit,NEXT(heapit));
+            exit(1);
+        }
+        /* Is every free block actually in the free list? */
+        if(!GET_ALLOC(HEADER(heapit))) {
+            void* it;
+            int found = 0;
+            for(it = free_listp;it != NULL;it = GET_NEXT_FREE(it))
+                if(it == heapit)
+                {
+                   found = 1; 
+                   break;
+                }
+            if(!found) {
+               printf("ERROR! FREE BLOCK NOT IN FREE LIST!\n");
+               exit(1);
+               }
+            }
+        }
 }
